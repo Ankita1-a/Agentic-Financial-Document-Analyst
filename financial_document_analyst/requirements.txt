@@ -1,0 +1,9 @@
+streamlit
+pdfplumber
+sentence-transformers
+chromadb
+rank_bm25
+groq
+requests
+google-genai
+pymupdf4llm
