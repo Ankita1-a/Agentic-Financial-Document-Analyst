@@ -1,0 +1,50 @@
+# Local development only. Render/production deploys each service
+# independently (see DEPLOY.md) — this file is for running both together
+# on your own machine before pushing.
+#
+# Usage:
+#   export MISTRAL_API_KEY=your-key-here
+#   docker compose up --build
+#
+# Port is configurable (default 8000) since 8000 sometimes collides with
+# other local services — override with BACKEND_PORT=8001 before `up` if
+# you need to. Only ONE place sets it (below); the healthcheck and the
+# frontend's BACKEND_URL both derive from it, so they can't drift out of
+# sync with each other the way a second hardcoded port number can.
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    ports:
+      - "${BACKEND_PORT:-8000}:${BACKEND_PORT:-8000}"
+    environment:
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+      - PORT=${BACKEND_PORT:-8000}
+    volumes:
+      # Mount the live data/ dir so re-ingesting locally doesn't require an
+      # image rebuild — the Dockerfile's own COPY data/ is what makes the
+      # image self-contained for an actual deploy, where this volume won't
+      # exist. NOT mounted :ro — ChromaDB's SQLite-backed store typically
+      # needs write access even for pure read/query operations (WAL journal
+      # files, lock files), so a read-only mount can break it outright.
+      - ./data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c \"import os,urllib.request; urllib.request.urlopen('http://localhost:'+os.environ.get('PORT','8000')+'/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+    ports:
+      - "8501:8501"
+    environment:
+      - BACKEND_URL=http://backend:${BACKEND_PORT:-8000}
+      - MISTRAL_API_KEY=${MISTRAL_API_KEY}
+    depends_on:
+      backend:
+        condition: service_healthy

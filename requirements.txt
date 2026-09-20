@@ -1,0 +1,27 @@
+# Ingestion pipeline
+pymupdf4llm
+mistralai
+pydantic
+
+# Stores (structured facts + vector search)
+chromadb
+
+# Agent (LangGraph orchestrator + tools)
+langchain
+langchain-mistralai
+langgraph
+httpx
+ddgs
+
+# Backend API
+fastapi
+uvicorn[standard]
+
+# UI
+streamlit
+
+# Only needed to run agent/tools.py's own smoke test (its signature
+# regression guard reuses google-genai's function-schema introspection as
+# an offline check) — not a runtime dependency of anything that actually
+# answers a question.
+google-genai
