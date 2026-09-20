@@ -63,13 +63,24 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Compute lowercase image repository name
+        # Docker/OCI repository names must be all-lowercase — a hard rule
+        # of the image spec, not a GitHub quirk. github.repository
+        # preserves the exact case of the repo/owner as created on GitHub,
+        # so a repo or username with any uppercase letters (like this one)
+        # makes `ghcr.io/${{ github.repository }}/...` an invalid tag
+        # outright. GitHub Actions' expression syntax has no built-in
+        # lower() function, so this computes it via the shell instead and
+        # stores it in GITHUB_ENV for the build steps below to reference.
+        run: echo "IMAGE_REPO=$(echo '${{ github.repository }}' | tr '[:upper:]' '[:lower:]')" >> "$GITHUB_ENV"
+
       - name: Build & push backend image
         uses: docker/build-push-action@v6
         with:
           context: .
           file: backend/Dockerfile
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: ghcr.io/${{ github.repository }}/backend:latest
+          tags: ghcr.io/${{ env.IMAGE_REPO }}/backend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -79,6 +90,6 @@ jobs:
           context: .
           file: frontend/Dockerfile
           push: ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
-          tags: ghcr.io/${{ github.repository }}/frontend:latest
+          tags: ghcr.io/${{ env.IMAGE_REPO }}/frontend:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
