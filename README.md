@@ -2,11 +2,12 @@
 
 [![CI](https://github.com/Ankita1-a/Company_Financial_Annual_Report_Analysis_Agent/actions/workflows/ci.yml/badge.svg)](https://github.com/Ankita1-a/Company_Financial_Annual_Report_Analysis_Agent/actions/workflows/ci.yml)
 
-An agentic system that reads companies' annual reports and actually
-answers questions about them — real financial trends, qualitative risk
+An agentic system built to read companies' annual reports and actually
+answer questions about them — real financial trends, qualitative risk
 factors, and information beyond the reports entirely — grounded, checked,
-and self-critiqued before you ever see the answer. Built end to end on
-free-tier APIs, containerized, and shipped with its own CI/CD pipeline.
+and self-critiqued before the answer is ever returned. It was built end
+to end on free-tier APIs, containerized, and shipped with its own CI/CD
+pipeline.
 
 ```
 "What's Tata Steel's revenue CAGR from FY2021 to FY2024, and how does
@@ -17,38 +18,18 @@ free-tier APIs, containerized, and shipped with its own CI/CD pipeline.
     source page, and double-checks its own answer before returning it.
 ```
 
-This README walks through the whole thing — setting up your environment,
-ingesting real PDFs, running the agent locally, containerizing it, and
-watching it get tested and published automatically on every push. If
-you're just here to skim the architecture, jump to that section below;
-if you're setting this up on your own machine, start at "Getting started"
-and just follow along in order.
+This README covers the whole thing — the environment being set up, real
+PDFs being ingested, the agent running locally, and it being containerized.
+The architecture section below has the technical overview; "Getting
+started" walks through the full setup in order.
 
 ---
 
-## What it actually does
+## What it does
 
-- **Structured financial lookups** — exact figures, YoY growth, CAGR, computed with real arithmetic, not language-model math
-- **Qualitative search** — semantic search over risk factors, MD&A, and segment commentary
-- **Code execution** — a sandboxed tool for custom calculations the fixed tools don't cover, with access to everything already fetched earlier in the conversation
-- **Web search** — free, no-API-key search for anything genuinely outside the ingested reports
-- **Visible planning** — the agent states its plan before acting, instead of hiding its reasoning inside a black box
-- **Answer verification** — every number in the final answer is checked against the tool results that produced it
-- **Self-critique** — a second pass checks whether the answer actually addressed everything that was asked
-
-## A few real bugs found along the way
-
-Most of what makes this project worth looking at isn't the feature list —
-it's what got found and fixed while actually using it, not just planning
-it on paper.
-
-| Found | What was really going on | Fix |
-|---|---|---|
-| A correct number rendered as a garbled figure in the final answer | The LLM transcribed a correct retrieved figure incorrectly in prose | A verifier that grounds every number in the answer against the turn's actual tool results |
-| A real citation URL got flagged as an "unmatched" 123-billion figure | The number-extraction regex didn't know to ignore digits inside URLs | Strip URLs before number extraction, with a regression test built from the real failure |
-| Every number from a web search result was flagged as unmatched | The verifier only read numeric fields, and search snippets are free text | Extended it to read numbers embedded in string fields too |
-| `vector_search` failing with a dimension-mismatch error | A stale test chunk had permanently locked the vector collection's dimension | A full collection reset — deleting *documents* alone doesn't undo that lock |
-| A CI pipeline that built fine locally failed on GitHub with an invalid image tag | Docker image names must be lowercase; the real repo name wasn't | Lowercase the repo name at workflow runtime before using it in a tag |
+- Structured financial lookups — exact figures, YoY growth, and CAGR, computed with real arithmetic
+- Semantic search over qualitative report text, a sandboxed code-execution tool, and free web search for anything beyond the ingested reports
+- Visible planning, answer verification, and self-critique on every response
 
 ## Architecture
 
@@ -74,21 +55,21 @@ flowchart TD
     API --> UI[frontend/app.py<br/>Streamlit]
 ```
 
-Extraction and retrieval are deliberately separate concerns. Standard
-metrics (revenue, capex, margins) become structured database rows with
-real computed trends — not a retrieval gamble. Only qualitative text goes
-through vector search, where it actually belongs. And the graph has an
-explicit verification step baked into its structure, not just a hope that
-the model remembers to check its own work.
+Extraction and retrieval were deliberately kept as separate concerns.
+Standard metrics (revenue, capex, margins) become structured database rows
+with real computed trends — not a retrieval gamble. Only qualitative text
+goes through vector search, where it actually belongs. And an explicit
+verification step was built into the graph's structure, rather than just
+hoping the model remembers to check its own work.
 
 ---
 
 ## Getting started
 
-Everything below assumes we're in the project root, and that **port
-8000** is free on our machine for the backend.
+Everything below assumes the working directory is the project root, and
+that **port 8000** is free for the backend.
 
-### 1. Create your environment
+### 1. Setting up the environment
 
 ```bash
 conda create -n financial-analyst python=3.12 -y
@@ -99,14 +80,14 @@ pip install -r requirements.txt
 The root `requirements.txt` covers everything — ingestion, the agent, and
 both services. `backend/requirements.txt` and `frontend/requirements.txt`
 are separate, intentionally minimal subsets used only for the Docker
-builds later on; you won't need to touch those directly here.
+builds later on; those aren't touched directly here.
 
-### 2. Get your Mistral key in place
+### 2. Setting up the Mistral key
 
 Free at **console.mistral.ai**.
 
 ```bash
-export MISTRAL_API_KEY=your-key-here
+export MISTRAL_API_KEY=<mistral-api-key>
 curl https://api.mistral.ai/v1/models -H "Authorization: Bearer $MISTRAL_API_KEY"
 ```
 
@@ -114,10 +95,10 @@ That `curl` bypasses the whole project and talks to Mistral directly — if
 it doesn't return a real list of models, nothing downstream will work
 either, so it's worth confirming here before going any further.
 
-### 3. Bring your own reports in
+### 3. Adding reports
 
-Drop your PDFs under `data/raw_pdfs/`, then tell `manifest.json` where to
-find them:
+PDFs are placed under `data/raw_pdfs/`, and `manifest.json` is updated to
+point at them:
 
 ```json
 [
@@ -136,8 +117,8 @@ a large report.
 python -m ingest.build_index manifest.json data/financials.sqlite data/chroma_db
 ```
 
-It's safe to re-run this later if you add a report or re-ingest one —
-facts get upserted and that company/year's chunks get replaced, not
+It's safe to re-run this later if a report is added or one is re-ingested
+— facts get upserted and that company/year's chunks get replaced, not
 duplicated. Parsing is cached; extraction isn't, so a re-run still spends
 fresh API calls on that part specifically.
 
@@ -174,12 +155,12 @@ python3 -m uvicorn backend.main:app --reload --port 8000
 **Terminal 2**, once the backend's up:
 ```bash
 export BACKEND_URL=http://localhost:8000
-export MISTRAL_API_KEY=your-key-here
+export MISTRAL_API_KEY=<mistral-api-key>
 streamlit run frontend/app.py
 ```
 
-Open the printed URL, check the sidebar shows your real ingested
-companies, and ask it something real.
+The printed URL is opened, the sidebar shows the real ingested companies,
+and a real question is asked.
 
 ### 7. Put it in containers
 
@@ -188,22 +169,22 @@ docker build -f backend/Dockerfile -t financial-analyst-backend .
 docker build -f frontend/Dockerfile -t financial-analyst-frontend .
 ```
 
-> If you're on a Mac and hit `open Dockerfile: no such file or directory`
-> despite the file clearly being there — macOS's filesystem is
+> On a Mac, `open Dockerfile: no such file or directory` despite the file
+> clearly being there almost always means one thing: macOS's filesystem is
 > case-insensitive, but Docker's build engine isn't. A file saved as
-> `DockerFile` instead of `Dockerfile` looks identical in Finder but
-> won't be found by the build.
+> `DockerFile` instead of `Dockerfile` looks identical in Finder but won't
+> be found by the build.
 
-Run them individually first, to keep a Dockerfile problem separate from a
-networking problem:
+They're run individually first, to keep a Dockerfile problem separate
+from a networking problem:
 ```bash
 docker run --rm -p 8000:8000 -e MISTRAL_API_KEY=$MISTRAL_API_KEY financial-analyst-backend
 ```
 
-Then bring the whole thing up together:
+Then the whole thing is brought up together:
 ```bash
 docker compose up --build
 ```
 `docker compose ps` should show the backend as `healthy` before the
-frontend even starts. Open **http://localhost:8501** and run through a
-real conversation.
+frontend starts. **http://localhost:8501** is opened, and a real
+conversation is run through.
