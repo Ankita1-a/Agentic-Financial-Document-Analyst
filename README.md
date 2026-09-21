@@ -85,8 +85,8 @@ the model remembers to check its own work.
 
 ## Getting started
 
-Everything below assumes you're in the project root, and that **port
-8000** is free on your machine for the backend.
+Everything below assumes we're in the project root, and that **port
+8000** is free on our machine for the backend.
 
 ### 1. Create your environment
 
